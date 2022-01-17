@@ -1,0 +1,12 @@
+The analysis was done using PDSPAnalyzer outputs (.root files)
+
+MC: Prod4a, 1GeV, RITM1115963
+
+Data: Prod4, runs 
+   5809
+   5810
+   5814
+   5816
+   5817
+   5842
+   5844

@@ -1,0 +1,204 @@
+In order to measure the pion absorption xs the event selection for incident
+pions and pion absorption candidates has to be performed.
+
+Most of the macros use the ROOT::RDataFrame libraries to analyse the .root
+output files of the PDSPanalyzer.
+
+
+The event selection should be performed on the pduneana outputs of the
+PDSPAnalyzer_module:
+https://wiki.dunescience.org/wiki/PDSPAnalyzer
+
+
+===== First Step ========= Event Selection ============
+
+The first step is to run the event selection on the PDSPanalyzer root output
+files.
+
+The event selection is performed on the mcFiles and data files in parallel
+Output files are generated containing the selection and some new relevant
+branches for further analysis
+
+Relevant files:   eventSelection.h
+                  eventSelection.h
+
+Specification for the macros:    input names of PDSPanalyzer ntuples
+                                 
+Output files: eventSelection_mc_all.root
+              eventSelection_data_all.root
+
+Command:
+            root -l 'eventSelection.C("path/to/MC/file.root",
+            "path/to/Data/file.root")'
+
+=======================================================
+
+===== Second Step ===== dEdx, trackpitch Values wire per wire for beam
+particles ============
+
+The macro dEdx_track_vs_wire_mcData.C runs on the output files of the
+eventSelection.C
+
+TH2D are produced that contain the dEdx and trackPitch vs wire values for beam
+Pion candidates. The TH2D's are produced and saved in the same file for mc and
+Data.
+
+Note, this can be done only for same momentum runs. Ideally it would be done
+on a particle by particle basis but due to crossing cosmics it is done for all
+beam particles
+
+Macro:   dEdx_track_vs_wire_mcData.C
+
+Input Files: eventSelection_mc_all.root
+             eventSelection_data_all.root
+
+Output File:
+output_dEdx_track_vs_wire_mcData.root
+
+Command:
+      root -l 'dEdx_track_vs_wire_mcData.C("path/eventSelection_mc_all.root", "path/eventSelection_data_all.root")'
+
+
+=======================================================
+
+===== Third Step ===== fit dEdx and trackpitch for MC and Data ============
+
+for each wire of APA3 from beam entry point the values of all recorded 1GeV pion
+candidates dEdx and track pitch is fitted
+
+dEdx is fitted with a landau and the MPV is extracted
+the mean of dEdx is extracted by applying the ratio of betheBloch Pion
+mean/mpv dEdx for 1GeV pions (fitting the mean of a landau comes along with a
+large uncertainty)
+trackPitch is fitted with a gaussian and the mean is extracted
+
+for each wire the fit values are saved, The fit values are saved in TH1D as
+fit value vs wire
+
+the input files are the output of second step
+
+Macro:   fit_dEdx_mc.C
+         fit_dEdx_data.C
+
+Input: output_dEdx_track_vs_wire_mcData.root
+
+Command:
+      root -l 'fit_dEdx_mc.C("path/output_dEdx_track_vs_wire_mcData.root")'
+      root -l 'fit_dEdx_data.C("path/output_dEdx_track_vs_wire_mcData.root")'
+
+Output: output_fit_mc_Prod4_eSlice.root
+        output_fit_data_Prod4_eSlice.root
+
+
+=======================================================
+
+Preparations have been made to continue with the eSlice Method and extract the
+XS by means of unfolding
+
+-----eventSelection_*_all.root-----
+contains selected incident pions and pion absorption candidates for MC and
+data
+
+-----output_fit_*_Prod4_eSlice.root----
+contains the fit values of dEdx and trackPitch for pion candidates on each
+wire. This is used to create a map of deposited energy at each wire
+where the energy is computed as the sum of dEdx*trackPitch starting from the
+beam entry point at wire 0 (68, bc of SCE effects)
+
+a pion that reaches wire 200 will have deposited the energy that is found as
+the sum of all dEdx*pitch until wire 200.
+
+
+=======================================================
+=======================================================
+      continue with eSlice Method
+=======================================================
+
+
+
+
+===== First Step ===== prepare Branches for eSliceMethod ============
+
+run a macro to prepare the root file that includes the relevant branches of
+initial kinetic energy and interacting kinetic energy to continue with the XS
+extraction via eSliceMethod
+
+in MC also the reco initialKE and interactingKE are reweighted as the initial
+KE distributions of MC and data are slightly shifted and do not have the same
+width. the true_interKE is also built with the method of the running sum of
+bethe bloch (computed for 1GeV pions) in order to match up with how the
+reco_interKE is built.
+
+Macros
+         MC: eSliceMethod_branchPrepMC.C
+         Data: eSliceMethod_branchPrepData.C
+
+Command (where * is either data or mc)
+      root -l 'eSliceMethod_branchPrep*.C("path/eventSelection_*_all.root","path/output_fit_*_Prod4_eSlice.root", "eSliceMethod_*_eventFile.root")'
+
+Output
+         eSliceMethod_*_eventFile.root
+
+            file with pion events that now
+            contain the necessary branches, this will be used for XS extraction
+            with unfolding
+
+         eSliceMethod_energyDeposit_*.root
+
+            file with deposited energy distribution to extract initial and
+            interacting KE of the pions
+
+
+
+===== Second Step ===== extract XS with eSliceMethod and unfolding ============
+
+eSliceMethod_unfoldBayes_XS_dataMC.C extracts the unfolded XS for the total
+Inelastic (needs improvement?) and the absorption processes for data and MC
+
+
+in order to run the final XS extraction with the eSliceMethod and unfolding it
+is necessary to install and load the RooUnfold libraries: https://roounfold.web.cern.ch/
+the rootlogon.C file includes the command to load the RooUnfold libraries once
+they are installed in your ROOT version.
+
+To understand which events contribute to the Response Matrix, the Missed and
+the Fake containers please read Chapter 7 of my thesis.
+
+The macro writes out a lot of useful information for the unfolding to the
+terminal
+
+Command
+      root -l 'eSliceMethod_unfoldBayes_XS_dataMC.C("path/eSliceMethod_mc_eventFile.root", "path/eSliceMethod_data_eventFile.root")'
+
+Output
+   unfold_xs_data_xxMeV.root is the output of the unfolded XS, the xx stands
+   for the binwidth chosen for the measurement (normally 50MeV)
+
+
+===== Addendum ===== validation of unfolding on MC ============
+
+eSliceMethod_unfoldBayes_xs_MCvalidation.C
+
+      
+
+=======================================================
+                     other macros
+=======================================================
+
+------------------Plots-------------------------------
+All macros that were used to produce the thesis plots are named as
+thesisPlot_*.C, they take usually mcFile and dataFile coming out of the
+branchPrep macros to produce the thesis Plots
+
+
+the XS plot with the systematics is available in thesisPlot_systematic_xs.C
+
+----------------------Systematic Variation---------------------------
+
+For a set of systematics the MC has been varied (which influences unfolding)
+the macros to find the results of the xs with the varied MC are all in
+unfoldSystematic_bayes_*.C macros.
+
+
+
+
